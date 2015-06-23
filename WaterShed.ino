@@ -18,7 +18,7 @@ volatile unsigned int pulsecount=0;
 // flag used to start sending
 int flag = false;
 int connected=0;
-int waiting=0;
+int waiting= 0;
 
 //LibHumidity humidity = LibHumidity(0);
 HTU21D myHumidity;
@@ -26,6 +26,8 @@ HTU21D myHumidity;
 void setup() {
 //  Serial.begin(9600);
 //  Serial.println("Waiting for connection...");
+  RFduinoBLE.deviceName = "Water Tracker V 1.0"; 
+  RFduinoBLE.advertisementData = "";
   pinMode (OnOff, OUTPUT);
   digitalWrite (OnOff, HIGH);
   RFduinoBLE.begin();
@@ -38,7 +40,7 @@ void setup() {
   } //else Serial.println("MPR121 found!");
   pinMode(Light,INPUT);  
   RFduino_pinWakeCallback(Light, HIGH, myinthandler);
-//  attachInterrupt(0, myinthandler);
+  waiting= 30*60*1000;
 }
 
 void RFduinoBLE_onConnect() {
@@ -49,7 +51,8 @@ void RFduinoBLE_onConnect() {
 }
 
 void RFduinoBLE_onDisconnect(){
-    digitalWrite (OnOff, LOW);
+    flag = false;
+    waiting = 10*60*1000;
 }
 
 void loop() {    // generate the next packet
@@ -65,7 +68,7 @@ void loop() {    // generate the next packet
     pulsecount = 0;
     delay(1000);
   } else {
-      if (waiting++ > 5*60*1000) {
+      if (waiting-- <= 0) {
 //        Serial.println("Sending Timeout");  
         digitalWrite (OnOff, LOW);
       }
