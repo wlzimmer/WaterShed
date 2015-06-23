@@ -20,17 +20,69 @@ int flag = false;
 int connected=0;
 int waiting= 0;
 
+uint8_t advdata[] =
+{
+  0x02,  // length
+  0x01,  // flags type
+  0x06,  // le general discovery mode | br edr not supported
+ 
+  0x02,  // length
+  0x0A,  // tx power level
+  0x04,  // +4dBm
+ 
+  // if this variable block is not included, the RFduino iPhone apps won't see the device
+  0x03,  // length
+  0x03,  // 16 bit service uuid (complete)
+  0x20,  // uuid low
+  0x22,  // uuid hi
+ 
+  0x14,  // max length 20
+  0x09,  // complete local name type
+  'T',
+  'r',
+  'a',
+  'c',
+  'k',
+  'e',
+  'r',
+  ' ',
+  ' ', // index 20: start 7 char space for custom name
+  ' ', 
+  ' ',
+  ' ',
+  ' ',
+  ' ',
+  ' ', // end 7 char space for custom name
+  ' ',
+  'v',
+  '0',
+  '2'
+};
+ 
+// select a flash page that isn't in use (see Memory.h for more info)
+#define  MY_FLASH_PAGE  251
+ 
+struct data_t
+{
+  // we will use java's famous 0xCAFEBABE magic number to indicate
+  // that the flash page has been initialized previously by our
+  // sketch
+  int magic_number;
+  int len;
+  char custom_name[7];
+};
+ 
+struct data_t *flash = (data_t*)ADDRESS_OF_PAGE(MY_FLASH_PAGE);
+ 
 //LibHumidity humidity = LibHumidity(0);
 HTU21D myHumidity;
 
 void setup() {
 //  Serial.begin(9600);
 //  Serial.println("Waiting for connection...");
-  RFduinoBLE.deviceName = "Water Tracker V 1.0"; 
-  RFduinoBLE.advertisementData = "";
   pinMode (OnOff, OUTPUT);
   digitalWrite (OnOff, HIGH);
-  RFduinoBLE.begin();
+//  RFduinoBLE.begin();
 
 // Default address is 0x5A, if tied to 3.3V its 0x5B
 // If tied to SDA its 0x5C and if SCL then 0x5D
@@ -41,6 +93,14 @@ void setup() {
   pinMode(Light,INPUT);  
   RFduino_pinWakeCallback(Light, HIGH, myinthandler);
   waiting= 30*60*1000;
+  
+  if (flash->magic_number != 0xCAFEBABE) {
+    flashSave(0, NULL);
+  }
+ 
+  Serial.begin(9600);
+  startBLEStack();
+  
 }
 
 void RFduinoBLE_onConnect() {
@@ -52,7 +112,7 @@ void RFduinoBLE_onConnect() {
 
 void RFduinoBLE_onDisconnect(){
     flag = false;
-    waiting = 10*60*1000;
+    waiting = .5*60*1000;
 }
 
 void loop() {    // generate the next packet
@@ -82,4 +142,70 @@ int myinthandler(uint32_t ulPin) // interrupt handler
   pulsecount++;
 }
 
+void flashSave(int len, char *custom_name)
+{
+  flashPageErase(MY_FLASH_PAGE);
+    
+  struct data_t value;
+  value.magic_number = 0xCAFEBABE;
+  value.len = len;
+  memcpy( value.custom_name, custom_name, len );
+ 
+  flashWriteBlock(flash, &value, sizeof(value)); 
+}
+ 
+void startBLEStack()
+{
+//  printString("Recieved Flash: ", flash->custom_name, flash->len);
+  int custom_name_len = flash->len;
+  if (custom_name_len > 7) {
+    custom_name_len = 7;
+  }
+  for(int i=0; i<custom_name_len; i++){
+    advdata[20+i] = flash->custom_name[i];
+  }
+  
+  // need to use the raw advertisment data approach because the more simple:
+  // RFduinoBLE.deviceName didn't work with dynamically computed data
+  RFduinoBLE_advdata = advdata;
+  RFduinoBLE_advdata_len = sizeof(advdata);
+  
+  // start the BLE stack
+  RFduinoBLE.begin();  
+}
+ 
+void RFduinoBLE_onReceive(char *data, int len)
+{
+//  printString("Recieved Data: ", data, len);
+   if(len > 0 && data[0] == 'n'){
+    // this is customized name setting
+    
+    // subtract off 'n'
+    len = len - 1;
+    data = data + 1;
+ 
+    if(len > 7){
+      len = 7;
+    }
+    flashSave(len, data);
+ 
+    // restart the BLE stack so the new name shows up
+    RFduinoBLE.end();
+    startBLEStack();
+    return;
+  }
+  if(len == 1 && data[0] == 'x'){
+    // this is the command to turn it off
+  }
+}
+
+void printString(char *label, char *data, int len)
+{
+  Serial.printf(label);
+  for (int i=0; i<len; i++){
+    Serial.printf("%c", data[i]);    
+  }
+  Serial.printf("\n");  
+}
+ 
 
