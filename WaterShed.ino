@@ -206,6 +206,7 @@ void RFduinoBLE_onReceive(char *data, int len)
   }
   if(len == 1 && data[0] == 'x'){
     // this is the command to turn it off
+    digitalWrite (OnOff, LOW);
   }
 }
 
