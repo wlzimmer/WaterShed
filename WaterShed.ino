@@ -20,24 +20,8 @@ int flag = false;
 int connected=0;
 int waiting= 0;
 
-uint8_t advdata[] =
+char baseDeviceName [] = 
 {
-  0x02,  // length
-  0x01,  // flags type
-  0x06,  // le general discovery mode | br edr not supported
- 
-  0x02,  // length
-  0x0A,  // tx power level
-  0x04,  // +4dBm
- 
-  // if this variable block is not included, the RFduino iPhone apps won't see the device
-  0x03,  // length
-  0x03,  // 16 bit service uuid (complete)
-  0x20,  // uuid low
-  0x22,  // uuid hi
- 
-  0x14,  // max length 20
-  0x09,  // complete local name type
   'T',
   'r',
   'a',
@@ -46,25 +30,26 @@ uint8_t advdata[] =
   'e',
   'r',
   ' ',
-  ' ', // index 20: start 7 char space for custom name
-  ' ', 
   ' ',
   ' ',
   ' ',
   ' ',
-  ' ', // end 7 char space for custom name
   ' ',
-  'v',
-  '0',
-  '2'
+  0
 };
- 
+
+// note that default max deviceName of 14 chars only allows a single advertisementData character
+// so we use a length one character less so that we can have 2 chars advertisementData
+
+// this can only be a 2 char string is set in the advertisementData
+#define  VERSION "b3"
+
 // select a flash page that isn't in use (see Memory.h for more info)
 #define  MY_FLASH_PAGE  251
 
 // this is currently seven because that is all that will fit in the
 // advertisment packet (along with the Tracker and version info)
-#define  MAX_CUSTOM_NAME_LENGTH 7
+#define  MAX_CUSTOM_NAME_LENGTH 5
 
 struct data_t
 {
@@ -166,18 +151,17 @@ void startBLEStack()
     custom_name_len = MAX_CUSTOM_NAME_LENGTH;
   }
   for(int i=0; i<custom_name_len; i++){
-    advdata[20+i] = flash->custom_name[i];
+    baseDeviceName[8+i] = flash->custom_name[i];
   }
   if(custom_name_len < MAX_CUSTOM_NAME_LENGTH) {
     for(int i=custom_name_len; i<MAX_CUSTOM_NAME_LENGTH; i++){
-      advdata[20+i] = ' ';
+      baseDeviceName[8+i] = ' ';
     }
   }
-  
-  // need to use the raw advertisment data approach because the more simple:
-  // RFduinoBLE.deviceName didn't work with dynamically computed data
-  RFduinoBLE_advdata = advdata;
-  RFduinoBLE_advdata_len = sizeof(advdata);
+
+  RFduinoBLE.deviceName = baseDeviceName;
+
+  RFduinoBLE.advertisementData = VERSION;
   
   // start the BLE stack
   RFduinoBLE.begin();  
