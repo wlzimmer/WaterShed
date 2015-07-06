@@ -199,6 +199,7 @@ void RFduinoBLE_onReceive(char *data, int len)
     flashSave(len, data);
  
     // restart the BLE stack so the new name shows up
+    flag = false;
     RFduinoBLE.end();
     startBLEStack();
     return;
