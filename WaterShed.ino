@@ -61,7 +61,11 @@ uint8_t advdata[] =
  
 // select a flash page that isn't in use (see Memory.h for more info)
 #define  MY_FLASH_PAGE  251
- 
+
+// this is currently seven because that is all that will fit in the
+// advertisment packet (along with the Tracker and version info)
+#define  MAX_CUSTOM_NAME_LENGTH 7
+
 struct data_t
 {
   // we will use java's famous 0xCAFEBABE magic number to indicate
@@ -69,7 +73,7 @@ struct data_t
   // sketch
   int magic_number;
   int len;
-  char custom_name[7];
+  char custom_name[MAX_CUSTOM_NAME_LENGTH];
 };
  
 struct data_t *flash = (data_t*)ADDRESS_OF_PAGE(MY_FLASH_PAGE);
@@ -158,11 +162,16 @@ void startBLEStack()
 {
 //  printString("Recieved Flash: ", flash->custom_name, flash->len);
   int custom_name_len = flash->len;
-  if (custom_name_len > 7) {
-    custom_name_len = 7;
+  if (custom_name_len > MAX_CUSTOM_NAME_LENGTH) {
+    custom_name_len = MAX_CUSTOM_NAME_LENGTH;
   }
   for(int i=0; i<custom_name_len; i++){
     advdata[20+i] = flash->custom_name[i];
+  }
+  if(custom_name_len < MAX_CUSTOM_NAME_LENGTH) {
+    for(int i=custom_name_len; i<MAX_CUSTOM_NAME_LENGTH; i++){
+      advdata[20+i] = ' ';
+    }
   }
   
   // need to use the raw advertisment data approach because the more simple:
@@ -184,8 +193,8 @@ void RFduinoBLE_onReceive(char *data, int len)
     len = len - 1;
     data = data + 1;
  
-    if(len > 7){
-      len = 7;
+    if(len > MAX_CUSTOM_NAME_LENGTH){
+      len = MAX_CUSTOM_NAME_LENGTH;
     }
     flashSave(len, data);
  
