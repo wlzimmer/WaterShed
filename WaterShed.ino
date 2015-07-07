@@ -20,6 +20,8 @@ int flag = false;
 int connected=0;
 int waiting= 0;
 
+// note that default max deviceName of 14 chars only allows a single advertisementData character
+// so we use a length one character less so that we can have 2 chars advertisementData
 char baseDeviceName [] = 
 {
   'T',
@@ -38,11 +40,9 @@ char baseDeviceName [] =
   0
 };
 
-// note that default max deviceName of 14 chars only allows a single advertisementData character
-// so we use a length one character less so that we can have 2 chars advertisementData
 
 // this can only be a 2 char string is set in the advertisementData
-#define  VERSION "b3"
+#define  VERSION "03"
 
 // select a flash page that isn't in use (see Memory.h for more info)
 #define  MY_FLASH_PAGE  251
@@ -109,6 +109,9 @@ void loop() {    // generate the next packet
     if (connected++ > 30*60) digitalWrite (OnOff, LOW);
 
 //    Serial.println(connected%2);
+
+    // This causes while loop causes the loop to block until something has subscribed
+    // to the RFduino output characteristic (2221)
     while (! RFduinoBLE.sendInt(1024 + int(myHumidity.readTemperature()+.5))); 
     while (! RFduinoBLE.sendInt(0000 + int((myHumidity.readHumidity()+.5)*10))); 
 //Serial.println ("temp="); Serial.println( myHumidity.readTemperature());
