@@ -47,7 +47,7 @@ char baseDeviceName [] =
 // select a flash page that isn't in use (see Memory.h for more info)
 #define  MY_FLASH_PAGE  251
 
-// this is currently seven because that is all that will fit in the
+// this is currently 5 because that is all that will fit in the
 // advertisment packet (along with the Tracker and version info)
 #define  MAX_CUSTOM_NAME_LENGTH 5
 
@@ -63,15 +63,11 @@ struct data_t
  
 struct data_t *flash = (data_t*)ADDRESS_OF_PAGE(MY_FLASH_PAGE);
  
-//LibHumidity humidity = LibHumidity(0);
 HTU21D myHumidity;
 
 void setup() {
-//  Serial.begin(9600);
-//  Serial.println("Waiting for connection...");
   pinMode (OnOff, OUTPUT);
   digitalWrite (OnOff, HIGH);
-//  RFduinoBLE.begin();
 
 // Default address is 0x5A, if tied to 3.3V its 0x5B
 // If tied to SDA its 0x5C and if SCL then 0x5D
@@ -108,20 +104,16 @@ void loop() {    // generate the next packet
   if (flag) {
     if (connected++ > 30*60) digitalWrite (OnOff, LOW);
 
-//    Serial.println(connected%2);
-
-    // This causes while loop causes the loop to block until something has subscribed
+    // These while loop causes the loop to block until something has subscribed
     // to the RFduino output characteristic (2221)
     while (! RFduinoBLE.sendInt(1024 + int(myHumidity.readTemperature()+.5))); 
     while (! RFduinoBLE.sendInt(0000 + int((myHumidity.readHumidity()+.5)*10))); 
-//Serial.println ("temp="); Serial.println( myHumidity.readTemperature());
     while (! RFduinoBLE.sendInt(2048 + cap.filteredData(0)));
     while (! RFduinoBLE.sendInt(3072 + pulsecount));
     pulsecount = 0;
     delay(1000);
   } else {
       if (waiting-- <= 0) {
-//        Serial.println("Sending Timeout");  
         digitalWrite (OnOff, LOW);
       }
       delay(1);
@@ -129,7 +121,6 @@ void loop() {    // generate the next packet
 }
 
 int myinthandler(uint32_t ulPin) // interrupt handler
-//void myinthandler() // interrupt handler
 {
   pulsecount++;
 }
