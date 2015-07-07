@@ -83,19 +83,21 @@ void setup() {
     flashSave(0, NULL);
   }
  
-  Serial.begin(9600);
+  // Serial.begin(9600);
+  println("Setup");
   startBLEStack();
   
 }
 
 void RFduinoBLE_onConnect() {
+  println("onConnect");
   flag = true;
   connected = 0;
-//  Serial.println("Sending");
   // first send is not possible until the iPhone completes service/characteristic discovery
 }
 
 void RFduinoBLE_onDisconnect(){
+    println("onDisconnect");
     flag = false;
     waiting = .5*60*1000;
 }
@@ -163,7 +165,8 @@ void startBLEStack()
  
 void RFduinoBLE_onReceive(char *data, int len)
 {
-//  printString("Recieved Data: ", data, len);
+   println("onReceive");
+   // printString(" data: ", data, len);
    if(len > 0 && data[0] == 'n'){
     // this is customized name setting
     
@@ -186,6 +189,11 @@ void RFduinoBLE_onReceive(char *data, int len)
     // this is the command to turn it off
     digitalWrite (OnOff, LOW);
   }
+}
+
+void println(const char *message)
+{
+  // Serial.println(message);
 }
 
 void printString(char *label, char *data, int len)
