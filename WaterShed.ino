@@ -20,24 +20,10 @@ int flag = false;
 int connected=0;
 int waiting= 0;
 
-uint8_t advdata[] =
+// note that default max deviceName of 14 chars only allows a single advertisementData character
+// so we use a length one character less so that we can have 2 chars advertisementData
+char baseDeviceName [] = 
 {
-  0x02,  // length
-  0x01,  // flags type
-  0x06,  // le general discovery mode | br edr not supported
- 
-  0x02,  // length
-  0x0A,  // tx power level
-  0x04,  // +4dBm
- 
-  // if this variable block is not included, the RFduino iPhone apps won't see the device
-  0x03,  // length
-  0x03,  // 16 bit service uuid (complete)
-  0x20,  // uuid low
-  0x22,  // uuid hi
- 
-  0x14,  // max length 20
-  0x09,  // complete local name type
   'T',
   'r',
   'a',
@@ -46,22 +32,25 @@ uint8_t advdata[] =
   'e',
   'r',
   ' ',
-  ' ', // index 20: start 7 char space for custom name
-  ' ', 
   ' ',
   ' ',
   ' ',
   ' ',
-  ' ', // end 7 char space for custom name
   ' ',
-  'v',
-  '0',
-  '2'
+  0
 };
- 
+
+
+// this can only be a 2 char string is set in the advertisementData
+#define  VERSION "03"
+
 // select a flash page that isn't in use (see Memory.h for more info)
 #define  MY_FLASH_PAGE  251
- 
+
+// this is currently 5 because that is all that will fit in the
+// advertisment packet (along with the Tracker and version info)
+#define  MAX_CUSTOM_NAME_LENGTH 5
+
 struct data_t
 {
   // we will use java's famous 0xCAFEBABE magic number to indicate
@@ -69,20 +58,16 @@ struct data_t
   // sketch
   int magic_number;
   int len;
-  char custom_name[7];
+  char custom_name[MAX_CUSTOM_NAME_LENGTH];
 };
  
 struct data_t *flash = (data_t*)ADDRESS_OF_PAGE(MY_FLASH_PAGE);
  
-//LibHumidity humidity = LibHumidity(0);
 HTU21D myHumidity;
 
 void setup() {
-//  Serial.begin(9600);
-//  Serial.println("Waiting for connection...");
   pinMode (OnOff, OUTPUT);
   digitalWrite (OnOff, HIGH);
-//  RFduinoBLE.begin();
 
 // Default address is 0x5A, if tied to 3.3V its 0x5B
 // If tied to SDA its 0x5C and if SCL then 0x5D
@@ -98,19 +83,21 @@ void setup() {
     flashSave(0, NULL);
   }
  
-  Serial.begin(9600);
+  // Serial.begin(9600);
+  println("Setup");
   startBLEStack();
   
 }
 
 void RFduinoBLE_onConnect() {
+  println("onConnect");
   flag = true;
   connected = 0;
-//  Serial.println("Sending");
   // first send is not possible until the iPhone completes service/characteristic discovery
 }
 
 void RFduinoBLE_onDisconnect(){
+    println("onDisconnect");
     flag = false;
     waiting = .5*60*1000;
 }
@@ -119,17 +106,16 @@ void loop() {    // generate the next packet
   if (flag) {
     if (connected++ > 30*60) digitalWrite (OnOff, LOW);
 
-//    Serial.println(connected%2);
+    // These while loop causes the loop to block until something has subscribed
+    // to the RFduino output characteristic (2221)
     while (! RFduinoBLE.sendInt(1024 + int(myHumidity.readTemperature()+.5))); 
     while (! RFduinoBLE.sendInt(0000 + int((myHumidity.readHumidity()+.5)*10))); 
-//Serial.println ("temp="); Serial.println( myHumidity.readTemperature());
     while (! RFduinoBLE.sendInt(2048 + cap.filteredData(0)));
     while (! RFduinoBLE.sendInt(3072 + pulsecount));
     pulsecount = 0;
     delay(1000);
   } else {
       if (waiting-- <= 0) {
-//        Serial.println("Sending Timeout");  
         digitalWrite (OnOff, LOW);
       }
       delay(1);
@@ -137,7 +123,6 @@ void loop() {    // generate the next packet
 }
 
 int myinthandler(uint32_t ulPin) // interrupt handler
-//void myinthandler() // interrupt handler
 {
   pulsecount++;
 }
@@ -158,17 +143,21 @@ void startBLEStack()
 {
 //  printString("Recieved Flash: ", flash->custom_name, flash->len);
   int custom_name_len = flash->len;
-  if (custom_name_len > 7) {
-    custom_name_len = 7;
+  if (custom_name_len > MAX_CUSTOM_NAME_LENGTH) {
+    custom_name_len = MAX_CUSTOM_NAME_LENGTH;
   }
   for(int i=0; i<custom_name_len; i++){
-    advdata[20+i] = flash->custom_name[i];
+    baseDeviceName[8+i] = flash->custom_name[i];
   }
-  
-  // need to use the raw advertisment data approach because the more simple:
-  // RFduinoBLE.deviceName didn't work with dynamically computed data
-  RFduinoBLE_advdata = advdata;
-  RFduinoBLE_advdata_len = sizeof(advdata);
+  if(custom_name_len < MAX_CUSTOM_NAME_LENGTH) {
+    for(int i=custom_name_len; i<MAX_CUSTOM_NAME_LENGTH; i++){
+      baseDeviceName[8+i] = ' ';
+    }
+  }
+
+  RFduinoBLE.deviceName = baseDeviceName;
+
+  RFduinoBLE.advertisementData = VERSION;
   
   // start the BLE stack
   RFduinoBLE.begin();  
@@ -176,7 +165,8 @@ void startBLEStack()
  
 void RFduinoBLE_onReceive(char *data, int len)
 {
-//  printString("Recieved Data: ", data, len);
+   println("onReceive");
+   // printString(" data: ", data, len);
    if(len > 0 && data[0] == 'n'){
     // this is customized name setting
     
@@ -184,19 +174,26 @@ void RFduinoBLE_onReceive(char *data, int len)
     len = len - 1;
     data = data + 1;
  
-    if(len > 7){
-      len = 7;
+    if(len > MAX_CUSTOM_NAME_LENGTH){
+      len = MAX_CUSTOM_NAME_LENGTH;
     }
     flashSave(len, data);
  
     // restart the BLE stack so the new name shows up
+    flag = false;
     RFduinoBLE.end();
     startBLEStack();
     return;
   }
   if(len == 1 && data[0] == 'x'){
     // this is the command to turn it off
+    digitalWrite (OnOff, LOW);
   }
+}
+
+void println(const char *message)
+{
+  // Serial.println(message);
 }
 
 void printString(char *label, char *data, int len)
